@@ -51,7 +51,10 @@ const SRC = document.documentElement.outerHTML;
 let S;
 try { S = JSON.parse(document.getElementById('state').textContent); } catch(e) { S = {shop:'Qurt magazin',tg:'',items:[]}; }
 const app = document.getElementById('app');
-let view = 'shop', cart = {}, cat = '', q = '', pendingImg = '';
+let view = 'shop', cart = {}, cat = '', q = '', pendingImg = '', adm = false;
+S.pw = S.pw || 'de7baa9a0859e641220ff2f51798c44a01d90eb71ed552b4d55a5e03a0d7b4de';
+const sha = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+if (location.hash === '#boshqaruv') view = 'login';
 const $ = (t,a={},...k) => { const e = document.createElement(t); for (const x in a) { if (x==='on') for (const ev in a.on) e.addEventListener(ev,a.on[ev]); else if (x==='cls') e.className=a[x]; else e[x]=a[x]; } k.flat().forEach(c => e.append(c)); return e; };
 const sum = n => Number(n).toLocaleString('ru-RU') + ' soʻm';
 const count = () => Object.values(cart).reduce((a,b)=>a+b,0);
@@ -66,7 +69,7 @@ async function save(){
 function tabs(){
   const t = (v,ic,lb,extra) => $('button',{cls:view===v?'on':'',on:{click:()=>{view=v;render();window.scrollTo(0,0);}}},$('b',{textContent:ic}),lb,extra||'');
   const c = count();
-  return $('nav',{},t('shop','🏠','Doʻkon'),t('cart','🛒','Savat',c?$('span',{cls:'cnt',textContent:c}):''),t('admin','⚙️','Boshqaruv'));
+  return $('nav',{},t('shop','🏠','Doʻkon'),t('cart','🛒','Savat',c?$('span',{cls:'cnt',textContent:c}):''),adm?t('admin','⚙️','Boshqaruv'):'');
 }
 function shop(){
   const s = $('input',{cls:'s',placeholder:'Mahsulot qidirish',value:q,on:{input:e=>{q=e.target.value;grid();}}});
@@ -115,8 +118,8 @@ function cartView(){
 function adminView(){
   app.replaceChildren($('header',{},$('h1',{textContent:'Boshqaruv'})));
   const w = $('div',{cls:'w'}); app.append(w,tabs());
-  const sh = $('input',{value:S.shop,placeholder:'Doʻkon nomi'}), tg = $('input',{value:S.tg,placeholder:'Telegram username (masalan: @zohid)'}), bt = $('input',{value:S.bt||'',placeholder:'Bot token (buyurtmalar guruhga tushishi uchun)'}), gid = $('input',{value:S.gid||'',placeholder:'Guruh ID (masalan: -1001234567890)'});
-  w.append($('div',{cls:'pan'},$('b',{textContent:'Sozlamalar'}),sh,tg,bt,gid));
+  const sh = $('input',{value:S.shop,placeholder:'Doʻkon nomi'}), tg = $('input',{value:S.tg,placeholder:'Telegram username (masalan: @zohid)'}), bt = $('input',{value:S.bt||'',placeholder:'Bot token (buyurtmalar guruhga tushishi uchun)'}), gid = $('input',{value:S.gid||'',placeholder:'Guruh ID (masalan: -1001234567890)'}), np = $('input',{type:'password',placeholder:'Yangi parol (oʻzgartirish uchun)'});
+  w.append($('div',{cls:'pan'},$('b',{textContent:'Sozlamalar'}),sh,tg,bt,gid,np));
   const nn = $('input',{placeholder:'Mahsulot nomi'}), pr = $('input',{placeholder:'Narxi (soʻm)',type:'number',inputMode:'numeric'}), op = $('input',{placeholder:'Eski narxi (chegirma uchun, ixtiyoriy)',type:'number',inputMode:'numeric'}), ct = $('input',{placeholder:'Boʻlim (masalan: Qurt, Sut mahsulotlari)'});
   const pv = $('img',{cls:'hid',style:'width:90px;border-radius:10px'});
   const f = $('input',{type:'file',accept:'image/*',on:{change:async e=>{ const x=e.target.files[0]; if(!x)return; try{pendingImg=await compress(x);pv.src=pendingImg;pv.classList.remove('hid');}catch(_){alert('Rasm oʻqilmadi.');} }}});
@@ -124,8 +127,14 @@ function adminView(){
     $('button',{style:'width:100%;margin-top:6px',textContent:'Qoʻshish',on:{click:()=>{ if(!nn.value.trim()||!(+pr.value>0)){alert('Nom va narxni kiriting.');return;} S.items.push({id:Date.now().toString(36),name:nn.value.trim(),price:+pr.value,old:+op.value||0,cat:ct.value.trim(),img:pendingImg}); pendingImg=''; adminView(); }}})));
   S.items.forEach(it=>w.append($('div',{cls:'row'},it.img?$('img',{src:it.img,style:'width:48px;height:48px;border-radius:8px;object-fit:cover'}):'🧀',$('div',{style:'flex:1',textContent:it.name+' · '+sum(it.price)}),
     $('button',{cls:'r',textContent:'✕',on:{click:()=>{S.items=S.items.filter(x=>x.id!==it.id);adminView();}}}))));
-  w.append($('button',{style:'width:100%;padding:14px;margin-top:14px',textContent:'Yuklab olish (index.html)',on:{click:async()=>{ S.shop=sh.value.trim()||'Qurt magazin'; S.tg=tg.value.trim(); S.bt=bt.value.trim(); S.gid=gid.value.trim(); await save(); }}}));
+  w.append($('button',{style:'width:100%;padding:14px;margin-top:14px',textContent:'Yuklab olish (index.html)',on:{click:async()=>{ S.shop=sh.value.trim()||'Qurt magazin'; S.tg=tg.value.trim(); S.bt=bt.value.trim(); S.gid=gid.value.trim(); if(np.value) S.pw=await sha(np.value); await save(); }}}));
 }
-function render(){ ({shop,cart:cartView,admin:adminView})[view](); }
+function login(){
+  const p = $('input',{type:'password',placeholder:'Parol'}), msg = $('div',{cls:'mu'});
+  const go = async()=>{ if(await sha(p.value)===S.pw){adm=true;view='admin';render();} else msg.textContent='Parol notoʻgʻri.'; };
+  app.replaceChildren($('header',{},$('h1',{textContent:'Kirish'})));
+  app.append($('div',{cls:'w'},p,$('button',{style:'width:100%;padding:14px',textContent:'Kirish',on:{click:go}}),msg,$('button',{cls:'g',style:'width:100%;margin-top:10px',textContent:'← Doʻkonga qaytish',on:{click:()=>{view='shop';render();}}})));
+}
+function render(){ if(view==='admin'&&!adm) view='login'; ({shop,cart:cartView,admin:adminView,login})[view](); }
 render();
 </script></body></html>
